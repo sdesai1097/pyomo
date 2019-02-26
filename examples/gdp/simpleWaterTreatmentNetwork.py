@@ -34,7 +34,8 @@ def build_water_treatment_network_model():
     
     """Set declarations"""
     m.in_flows = RangeSet(1, 2, doc="Inlet total flows", ordered=True)
-    m.comps = Set(initialize=['A', 'B'])
+    #Water is represented as third component, but really represents total flow
+    m.comps = Set(initialize=['A', 'B', 'W'])
     m.mixers = RangeSet(1, 3, doc="Mixers", ordered=True)
     m.mixer_ins = RangeSet(1, 4, doc="Mixer_Ins", ordered=True)
     m.splitters = RangeSet(1, 4, doc="Splitters", ordered=True)
@@ -46,30 +47,33 @@ def build_water_treatment_network_model():
 
     #Inlet flow information
     in_flows = {1:40, 2:40} # t/h
-    in_concs = {1: {'A':100, 'B':20}, #ppm
-                2: {'A':15, 'B':200}}
+    #Component flow of water is just the same as the total flowrate
+    in_concs = {1: {'A':100, 'B':20, 'W':1}, #ppm
+                2: {'A':15, 'B':200, 'W':1}}
 
     @m.Param(m.in_flows, m.comps, doc="Inlet Component Flows [=] t*ppm/h")
     def in_comp_flow(m, flow, comp):
         return in_flows[flow] * (in_concs[flow][comp])
 
-    limits = {'A':10,'B':10} # Discharge limits [=] ppm
+    limits = {'A':10, 'B':10, 'W':1} # Discharge limits [=] ppm
     
-    f_out = sum(in_flows[i] for i in m.in_flows)
+    m.out_flow_total = sum(in_flows[i] for i in m.in_flows)
     @m.Param(m.comps, doc="Outlet Component Flows [=] t*ppm/h")
     def out_comp_flow(m, comp):
-        return f_out * limits[comp]
+        return m.out_flow_total * limits[comp]
 
     # equipment_info = {num: name, [removal ratio A, removal ratio B]}
-    equipment_info = {1:['X', 95,  0],
-                      2:['XX', 0, 97.6]}
-
+    equipment_info = {1:['X', 95.0,  0.0],
+                      2:['XX', 0.0, 97.6]}
+    
     @m.Param(m.tru, m.comps, doc="Equipment Removal Ratio for Each Component")
     def beta(m, equip, comp):
         if comp == 'A':
             return equipment_info[equip][1]/100
-        else:
+        elif comp == 'B':
             return equipment_info[equip][2]/100
+        else:
+            return 0
 
 
     """Variable Declarations"""
@@ -84,7 +88,7 @@ def build_water_treatment_network_model():
 
     """Constraint definitions"""
 
-    @m.Constraint(m.mixers, m.comps, doc="Mass Balance for mixer k")
+    @m.Constraint(m.mixers, m.comps, doc="Flow Balance for mixer k")
     def mixer_balance(m, mixer, comp):
         if mixer < len(m.mixers):
             return m.IPU[mixer,comp] == sum(m.M_k[mixer,inlet,comp] for inlet in m.mixer_ins)
@@ -95,7 +99,7 @@ def build_water_treatment_network_model():
     def split_mix(m, splitter, mixer, comp):
         return m.M_k[mixer,splitter,comp] == m.S_k[splitter,mixer,comp]
     
-    @m.Constraint(m.splitters, m.comps, doc="Component Flow Balance for splitter k")
+    @m.Constraint(m.splitters, m.comps, doc="Flow Balance for splitter k")
     def splitter_balance(m, splitter, comp):
         if splitter <= len(m.in_flows): #based on number of inlet streams
             return m.in_comp_flow[splitter,comp] == sum(m.S_k[splitter,outlet,comp] for outlet in m.splitter_outs)
@@ -113,14 +117,17 @@ def build_water_treatment_network_model():
         else:
             return m.S_k[splitter,outlet,comp] == m.split[splitter,outlet] * m.OPU[splitter-len(m.in_flows),comp]
 
-    @m.Constraint(m.tru,m.comps, doc="Component Removal for Treatment Unit k")
+    @m.Constraint(m.tru, m.comps, doc="Component Removal for Treatment Unit k")
     def component_removal(m,equip,comp):
-        return m.OPU[equip,comp] == m.beta[equip,comp]*m.IPU[equip,comp]
+        return m.OPU[equip,comp] == (1-m.beta[equip,comp])*m.IPU[equip,comp]
 
-
+    @m.Constraint(m.tru, doc="Total Flow Balance for Treatment Unit k")
+    def total_tru_flow_balance(m, equip):
+        return m.IPU[equip,'W'] == m.OPU[equip,'W']
+    
     """Objective function definition"""
     
-    m.minCost = Objective(expr=sum(m.OPU[t,'A'] + m.OPU[t,'B'] for t in m.tru), doc="Minimize waste stream processing cost")
+    m.minCost = Objective(expr=sum(m.OPU[t,'W'] for t in m.tru), doc="Minimize waste stream processing cost")
 
     return m
 
@@ -132,3 +139,9 @@ TransformationFactory('gdp.bigm').apply_to(model,bigM=1e8)
 opt = SolverFactory('gams')
 
 results = opt.solve (model, tee=True, solver='baron')
+
+print results
+
+model.pprint()
+
+

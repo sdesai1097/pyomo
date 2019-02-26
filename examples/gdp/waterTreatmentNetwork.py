@@ -34,45 +34,46 @@ def build_water_treatment_network_model():
     
     """Set declarations"""
     m.in_flows = RangeSet(1, 3, doc="Inlet total flows", ordered=True)
-    m.comps = Set(initialize=['A', 'B', 'C'])
+    #Water is represented as fourth component, but really represents total flow
+    m.comps = Set(initialize=['A', 'B', 'C', 'W'])
     m.mixers = RangeSet(1, 4, doc="Mixers", ordered=True)
     m.mixer_ins = RangeSet(1,6, doc="Mixer_Ins", ordered=True)
     m.splitters = RangeSet(1, 6, doc="Splitters", ordered=True)
     m.splitter_outs = RangeSet(1, 4, doc="Splitter_Outs", ordered=True)
     m.tru = RangeSet(1, 3, doc="Treatment process units", ordered=True)
-    m.equipment = RangeSet(1, 3, doc="Equipment Per Unit", ordered=True)
     m.allEquipment = RangeSet(1, 9, doc="All Equipment", ordered=True)
     
 
     """Parameter and initial point declarations"""
-
+    
     #Inlet flow information
     in_flows = {1:20, 2:15, 3:5} # t/h
-    in_concs = {1: {'A':1100, 'B':300, 'C': 400}, #ppm
-                2: {'A':300, 'B':700, 'C':1500}, 
-                3: {'A':500, 'B':1000, 'C':600}}
+    #Component flow of water is just the same as the total flowrate
+    in_concs = {1: {'A':1100, 'B':300, 'C': 400, 'W':1}, #ppm
+                2: {'A':300, 'B':700, 'C':1500, 'W':1}, 
+                3: {'A':500, 'B':1000, 'C':600, 'W':1}}
 
     @m.Param(m.in_flows, m.comps, doc="Inlet Component Flows [=] t*ppm/h")
     def in_comp_flow(m, flow, comp):
         return in_flows[flow] * (in_concs[flow][comp])
-
-    limits = {'A':100,'B':100,'C':100} # Discharge limits [=] ppm
     
-    f_out = sum(in_flows[i] for i in m.in_flows)
+    limits = {'A':100,'B':100,'C':100, 'W':1} # Discharge limits [=] ppm
+    
+    m.out_flow_total = sum(in_flows[i] for i in m.in_flows)
     @m.Param(m.comps, doc="Outlet Component Flows [=] t*ppm/h")
     def out_comp_flow(m, comp):
-        return f_out * limits[comp]
+        return m.out_flow_total * limits[comp]
 
     # equipment_info = {num: name, unit, removal ratio A, removal ratio B, removal ratio C, investment alpha, operating gamma}
-    equipment_info = {1:['EA', 1, 90,  0, 40, 3480,      0],
-                      2:['EB', 1, 50, 70,  0,  469,     10],
-                      3:['EC', 1,  0, 80,  0,   26,      1],
-                      4:['ED', 2,  0, 90,  0,  726, 0.0089],
-                      5:['EE', 2,  0, 99,  0, 1260,  0.018],
-                      6:['EF', 2, 50, 99, 80, 5000,    5.8],
-                      7:['EG', 3, 80,  0, 60,  320,      6],
-                      8:['EH', 3,  0,  0, 80,   58,     15],
-                      9:['EI', 3,  0,  0, 40,   10,      1]}
+    equipment_info = {1:['EA', 1, 90.0,  0.0, 40.0, 3480,      0],
+                      2:['EB', 1, 50.0, 70.0,  0.0,  469,     10],
+                      3:['EC', 1,  0.0, 80.0,  0.0,   26,      1],
+                      4:['ED', 2,  0.0, 90.0,  0.0,  726, 0.0089],
+                      5:['EE', 2,  0.0, 99.0,  0.0, 1260,  0.018],
+                      6:['EF', 2, 50.0, 99.0, 80.0, 5000,    5.8],
+                      7:['EG', 3, 80.0,  0.0, 60.0,  320,      6],
+                      8:['EH', 3,  0.0,  0.0, 80.0,   58,     15],
+                      9:['EI', 3,  0.0,  0.0, 40.0,   10,      1]}
 
     @m.Param(m.allEquipment, m.comps, doc="Equipment Removal Ratio for Each Component")
     def beta(m, equip, comp):
@@ -80,8 +81,10 @@ def build_water_treatment_network_model():
             return equipment_info[equip][2]/100
         elif comp == 'B':
             return equipment_info[equip][3]/100
-        else:
+        elif comp == 'C':
             return equipment_info[equip][4]/100
+        else:
+            return 0
 
     @m.Param(m.allEquipment, doc="Equipment Investment Cost")
     def alpha(m, equip):
@@ -94,18 +97,18 @@ def build_water_treatment_network_model():
 
     """Variable Declarations"""
 
-    m.S_k = Var(m.splitters, m.splitter_outs, m.comps, domain=NonNegativeReals, bounds=(0,40), doc="Splitter Effluent Streams")
-    m.M_k = Var(m.mixers, m.mixer_ins, m.comps, domain=NonNegativeReals, bounds=(0,40), doc="Mixer Inlet Streams")
-    m.IPU = Var(m.tru, m.comps, domain=NonNegativeReals, bounds=(0,40), doc="TRU Inlet Streams")
-    m.OPU = Var(m.tru, m.comps, domain=NonNegativeReals, bounds=(0,40), doc="TRU Outlet Streams")
+    m.S_k = Var(m.splitters, m.splitter_outs, m.comps, domain=NonNegativeReals, doc="Splitter Effluent Streams")
+    m.M_k = Var(m.mixers, m.mixer_ins, m.comps, domain=NonNegativeReals, doc="Mixer Inlet Streams")
+    m.IPU = Var(m.tru, m.comps, domain=NonNegativeReals, doc="TRU Inlet Streams")
+    m.OPU = Var(m.tru, m.comps, domain=NonNegativeReals, doc="TRU Outlet Streams")
     m.split = Var(m.splitters, m.splitter_outs, domain=NonNegativeReals, bounds=(0,1), 
                                       doc="Split fractions for splitter k into stream i")
-    m.CP_k = Var(m.tru, domain=NonNegativeReals, bounds=(0,100000000), doc="Cost of equipment h chosen for treatment unit k")
-
-
+    m.CP_k = Var(m.tru, domain=NonNegativeReals, doc="Cost of equipment h chosen for treatment unit k")
+    
+    
     """Constraint definitions"""
 
-    @m.Constraint(m.mixers, m.comps, doc="Mass Balance for mixer k")
+    @m.Constraint(m.mixers, m.comps, doc="Flow Balance for mixer k")
     def mixer_balance(m, mixer, comp):
         if mixer < len(m.mixers):
             return m.IPU[mixer,comp] == sum(m.M_k[mixer,inlet,comp] for inlet in m.mixer_ins)
@@ -116,7 +119,7 @@ def build_water_treatment_network_model():
     def split_mix(m, splitter, mixer, comp):
         return m.M_k[mixer,splitter,comp] == m.S_k[splitter,mixer,comp]
     
-    @m.Constraint(m.splitters, m.comps, doc="Component Flow Balance for splitter k")
+    @m.Constraint(m.splitters, m.comps, doc="Flow Balance for splitter k")
     def splitter_balance(m, splitter, comp):
         if splitter <= len(m.in_flows): #based on number of inlet streams
             return m.in_comp_flow[splitter,comp] == sum(m.S_k[splitter,outlet,comp] for outlet in m.splitter_outs)
@@ -133,8 +136,11 @@ def build_water_treatment_network_model():
             return m.S_k[splitter,outlet,comp] == m.split[splitter,outlet] * m.in_comp_flow[splitter,comp]
         else:
             return m.S_k[splitter,outlet,comp] == m.split[splitter,outlet] * m.OPU[splitter-len(m.in_flows),comp]
-
-
+                           
+    @m.Constraint(m.tru, doc="Total Flow Balance for Treatment Unit k")
+    def total_tru_flow_balance(m, equip):
+        return m.IPU[equip,'W'] == m.OPU[equip,'W']
+        
     """Disjunctions"""
 
     #Different types of equipment can be used for each treatment unit
@@ -145,9 +151,9 @@ def build_water_treatment_network_model():
 
         @disj.Constraint(m.comps)
         def component_removal(disj,comp):
-            return m.OPU[((equip-1)//3)+1,comp] == m.beta[equip,comp]*m.IPU[((equip-1)//3)+1,comp]
-
-        F = sum(m.OPU[((equip-1)//3)+1,comp] for comp in m.comps)
+            return m.OPU[((equip-1)//3)+1,comp] == (1-m.beta[equip,comp])*m.IPU[((equip-1)//3)+1,comp]
+        
+        F = m.OPU[((equip-1)//3)+1,'W']
 
         disj.cost = Constraint(expr=m.CP_k[((equip-1)//3)+1]/1000 == (m.alpha[equip]*(F**0.7) + m.gamma[equip]*F)/1000)
 
@@ -170,8 +176,14 @@ def build_water_treatment_network_model():
 
 model = build_water_treatment_network_model()
 
-TransformationFactory('gdp.bigm').apply_to(model,bigM=1e8)
+TransformationFactory('gdp.bigm').apply_to(model,bigM=1e6)
 
 opt = SolverFactory('gams')
 
 results = opt.solve (model, tee=True, solver='baron')
+
+print results
+
+model.pprint()
+
+
