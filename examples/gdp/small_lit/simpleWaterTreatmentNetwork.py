@@ -1,7 +1,7 @@
 '''
-Problem from Example 3.5.1: Water Treatment Network
-(Generalized Disjunctive Programming: A Framework for Formulation and
- Alternative Algorithms for MINLP Optimization - Grossmann and Ruiz, 2012)
+Problem from Example 1 (Optimal Design of Distributed Wastewater Treatment Networks - Galan and Grossmann, 1998)
+
+Link to Article: https://pubs.acs.org/doi/10.1021/ie980133h 
 
 This example corresponds to a synthesis problem of a distributed
 wastewater multicomponent network. Given a set of process liquid
@@ -9,16 +9,12 @@ streams with known composition, a set of technologies for the removal
 of pollutants, and a set of mixers and splitters, the objective is to
 find the interconnections of the technologies and their flowrates to 
 meet the specified discharge composition of pollutant at minimum
-total cost. Discrete choices involve deciding what equipment to use for 
-each treatment unit.
+total cost.
 
-Link to Article: 
-https://pdfs.semanticscholar.org/d533/63bc770f93f876277136a5c6a9fba12a27e6.pdf
+In this simplified example of the wastewater treatment network problem, costs are optimized by minimizing the flow rate treated and treatment unit equipment is pre-selected (no discrete choices involved).
 
-Original Problem from Galan and Grossmann, 1998, Example 1
+Full GDP model and explanation of model for the wastewater treatment network problem can be found under example 4 of Lee and Grossmann (2003): 
 
-Full GDP model and explanation of model for wastewater treatment network from
-Lee and Grossmann (2003)
 https://ac-els-cdn-com.proxy.library.cmu.edu/S009813540300098X/1-s2.0-
 S009813540300098X-main.pdf?_tid=b8fa9ebf-0035-4764-8cbd-aff04fe33274&acdnat=
 1544402786_0af0a426c9d1438838d007e0cd023399
