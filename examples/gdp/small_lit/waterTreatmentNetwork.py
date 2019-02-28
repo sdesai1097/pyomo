@@ -105,6 +105,24 @@ def build_water_treatment_network_model():
                                       doc="Split fractions for splitter k into stream i")
     m.CP_k = Var(m.tru, domain=NonNegativeReals, doc="Cost of equipment h chosen for treatment unit k")
     
+    m.S_k[1,1,'W'].fix(0)
+    m.S_k[1,4,'W'].fix(0)
+    m.S_k[2,1,'W'].fix(0)
+    m.S_k[2,2,'W'].fix(15)
+    m.S_k[2,3,'W'].fix(0)
+    m.S_k[2,4,'W'].fix(0)
+    m.S_k[3,1,'W'].fix(0)
+    m.S_k[3,2,'W'].fix(5)
+    m.S_k[3,3,'W'].fix(0)
+    m.S_k[3,4,'W'].fix(0)
+    m.S_k[4,1,'W'].fix(0)
+    m.S_k[4,2,'W'].fix(0)
+    m.S_k[5,2,'W'].fix(0)
+    m.S_k[5,3,'W'].fix(0)
+    m.S_k[5,4,'W'].fix(0)
+    m.S_k[6,1,'W'].fix(0)
+    m.S_k[6,2,'W'].fix(0)
+    m.S_k[6,3,'W'].fix(0)
     
     """Constraint definitions"""
 
@@ -113,7 +131,10 @@ def build_water_treatment_network_model():
         if mixer < len(m.mixers):
             return m.IPU[mixer,comp] == sum(m.M_k[mixer,inlet,comp] for inlet in m.mixer_ins)
         else: #last mixer has a different mass balance
-            return m.out_comp_flow[comp] == sum(m.M_k[mixer,inlet,comp] for inlet in m.mixer_ins)
+            if comp == 'W':
+                return m.out_comp_flow[comp] == sum(m.M_k[mixer,inlet,comp] for inlet in m.mixer_ins)
+            else:
+                return m.out_comp_flow[comp] >= sum(m.M_k[mixer,inlet,comp] for inlet in m.mixer_ins)
     
     @m.Constraint(m.splitters, m.mixers, m.comps, doc="Splitter effluents are mixer inlets")
     def split_mix(m, splitter, mixer, comp):
@@ -155,7 +176,7 @@ def build_water_treatment_network_model():
         
         F = m.OPU[((equip-1)//3)+1,'W']
 
-        disj.cost = Constraint(expr=m.CP_k[((equip-1)//3)+1]/1000 == (m.alpha[equip]*(F**0.7) + m.gamma[equip]*F)/1000)
+        disj.cost = Constraint(expr=m.CP_k[((equip-1)//3)+1] == (m.alpha[equip]*(F**0.7) + m.gamma[equip]*F))
 
     m.TX = Disjunction(expr=[m.equipment_disjuncts[1], m.equipment_disjuncts[2], m.equipment_disjuncts[3]], 
                            doc="Treatment Unit 1")
@@ -180,7 +201,7 @@ TransformationFactory('gdp.bigm').apply_to(model,bigM=1e6)
 
 opt = SolverFactory('gams')
 
-results = opt.solve (model, tee=True, solver='baron')
+results = opt.solve (model, tee=True, solver='baron', add_options=['option reslim=120;'])
 
 print results
 

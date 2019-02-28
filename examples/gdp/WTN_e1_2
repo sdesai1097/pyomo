@@ -1,24 +1,4 @@
-'''
-Problem from Example 1 (Optimal Design of Distributed Wastewater Treatment Networks - Galan and Grossmann, 1998)
-
-Link to Article: https://pubs.acs.org/doi/10.1021/ie980133h 
-
-This example corresponds to a synthesis problem of a distributed
-wastewater multicomponent network. Given a set of process liquid
-streams with known composition, a set of technologies for the removal
-of pollutants, and a set of mixers and splitters, the objective is to
-find the interconnections of the technologies and their flowrates to 
-meet the specified discharge composition of pollutant at minimum
-total cost.
-
-In this simplified example of the wastewater treatment network problem, costs are optimized by minimizing the flow rate treated and treatment unit equipment is pre-selected (no discrete choices involved).
-
-Full GDP model and explanation of model for the wastewater treatment network problem can be found under example 4 of Lee and Grossmann (2003): 
-
-https://ac-els-cdn-com.proxy.library.cmu.edu/S009813540300098X/1-s2.0-
-S009813540300098X-main.pdf?_tid=b8fa9ebf-0035-4764-8cbd-aff04fe33274&acdnat=
-1544402786_0af0a426c9d1438838d007e0cd023399
-'''
+# In terms of total flows and concentrations
 
 from pyomo.environ import *
 from pyomo.gdp import *
@@ -29,14 +9,14 @@ def build_water_treatment_network_model():
 
     
     """Set declarations"""
-    m.in_flows = RangeSet(1, 3, doc="Inlet total flows", ordered=True)
-    #Water is represented as fourth component, but really represents total flow
-    m.comps = Set(initialize=['A', 'B', 'C', 'W'])
-    m.mixers = RangeSet(1, 4, doc="Mixers", ordered=True)
-    m.mixer_ins = RangeSet(1, 6, doc="Mixer_Ins", ordered=True)
-    m.splitters = RangeSet(1, 6, doc="Splitters", ordered=True)
-    m.splitter_outs = RangeSet(1, 4, doc="Splitter_Outs", ordered=True)
-    m.tru = RangeSet(1, 3, doc="Treatment process units", ordered=True)
+    m.in_flows = RangeSet(1, 2, doc="Inlet total flows", ordered=True)
+    #Water is represented as third component, but really represents total flow
+    m.comps = Set(initialize=['A', 'B', 'W'])
+    m.mixers = RangeSet(1, 3, doc="Mixers", ordered=True)
+    m.mixer_ins = RangeSet(1, 4, doc="Mixer_Ins", ordered=True)
+    m.splitters = RangeSet(1, 4, doc="Splitters", ordered=True)
+    m.splitter_outs = RangeSet(1, 3, doc="Splitter_Outs", ordered=True)
+    m.tru = RangeSet(1, 2, doc="Treatment process units", ordered=True)
     
 
     """Parameter and initial point declarations"""
@@ -44,18 +24,16 @@ def build_water_treatment_network_model():
     #Inlet flow information
     #Component flow of water is just the same as the total flowrate
     #ppm for A,B and t/h for W
-    inlet = {1: {'A':390, 'B':16780, 'C':25, 'W':13.1},
-             2: {'A':10, 'B':110, 'C':100, 'W':32.7},
-             3: {'A':25, 'B':40, 'C':35, 'W':56.5}}
+    inlet = {1: {'A':100, 'B':20, 'W':40},
+                2: {'A':15, 'B':200, 'W':40}}
 
-    limits = {'A':2, 'B':2, 'C':5} # Discharge limits [=] ppm
+    limits = {'A':10, 'B':10} # Discharge limits [=] ppm
     
     m.flow_total = sum(inlet[i]['W'] for i in m.in_flows)
 
     # equipment_info = {num: name, [removal ratio A, removal ratio B]}
-    equipment_info = {1:['X', 99.9, 0.0, 0.0],
-                      2:['XX', 90.0, 90.0, 97.0],
-                      3:['XXX', 0.0, 95.0, 20.0]}
+    equipment_info = {1:['X', 95.0,  0.0],
+                      2:['XX', 0.0, 97.6]}
     
     @m.Param(m.tru, m.comps, doc="Equipment Removal Ratio for Each Component")
     def beta(m, equip, comp):
@@ -63,8 +41,6 @@ def build_water_treatment_network_model():
             return equipment_info[equip][1]/100
         elif comp == 'B':
             return equipment_info[equip][2]/100
-        elif comp == 'C':
-            return equipment_info[equip][3]/100
         else:
             return 0
 
@@ -138,13 +114,3 @@ results = opt.solve (model, tee=True, solver='baron')
 print results
 
 model.pprint()
-
-
-
-
-
-
-
-
-
-
