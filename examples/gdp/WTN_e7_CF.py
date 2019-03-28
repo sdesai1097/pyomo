@@ -1,5 +1,5 @@
 '''
-Problem from Example 1 (Optimal Design of Distributed Wastewater Treatment Networks - Galan and Grossmann, 1998)
+Problem from Example 7 (Optimal Design of Distributed Wastewater Treatment Networks - Galan and Grossmann, 1998)
 
 Link to Article: https://pubs.acs.org/doi/10.1021/ie980133h 
 
@@ -18,8 +18,11 @@ Full GDP model and explanation of model for the wastewater treatment network pro
 https://ac-els-cdn-com.proxy.library.cmu.edu/S009813540300098X/1-s2.0-
 S009813540300098X-main.pdf?_tid=b8fa9ebf-0035-4764-8cbd-aff04fe33274&acdnat=
 1544402786_0af0a426c9d1438838d007e0cd023399
+
+* This model is solved in terms of component flows
 '''
 
+from __future__ import division
 from pyomo.environ import *
 from pyomo.gdp import *
 
@@ -42,17 +45,17 @@ def build_water_treatment_network_model():
     """Parameter and initial point declarations"""
 
     #Inlet flow information
-    in_flows = {1:13.1, 2:32.7, 3:56.5} # t/h
+    in_flows = {1:20, 2:15, 3:5} # t/h
     #Component flow of water is just the same as the total flowrate
-    in_concs = {1: {'A':390, 'B':16780, 'C':25, 'W':1}, #ppm
-                2: {'A':10, 'B':110, 'C':100, 'W':1},
-                3: {'A':25, 'B':40, 'C':35, 'W':1}}
+    in_concs = {1: {'A':600, 'B':500, 'C':500, 'W':1}, #ppm
+                2: {'A':400, 'B':200, 'C':100, 'W':1},
+                3: {'A':200, 'B':1000, 'C':200, 'W':1}}
 
     @m.Param(m.in_flows, m.comps, doc="Inlet Component Flows [=] t*ppm/h")
     def in_comp_flow(m, flow, comp):
         return in_flows[flow] * (in_concs[flow][comp])
 
-    limits = {'A':2, 'B':2, 'C':5, 'W':1} # Discharge limits [=] ppm
+    limits = {'A':100, 'B':100, 'C':100, 'W':1} # Discharge limits [=] ppm
     
     m.out_flow_total = sum(in_flows[i] for i in m.in_flows)
     @m.Param(m.comps, doc="Outlet Component Flows [=] t*ppm/h")
@@ -60,9 +63,9 @@ def build_water_treatment_network_model():
         return m.out_flow_total * limits[comp]
 
     # equipment_info = {num: name, [removal ratio A, removal ratio B]}
-    equipment_info = {1:['X', 99.9, 0.0, 0.0],
-                      2:['XX', 90.0, 90.0, 97.0],
-                      3:['XXX', 0.0, 95.0, 20.0]}
+    equipment_info = {1:['X', 90.0, 0.0, 0.0],
+                      2:['XX', 0.0, 99.0, 0.0],
+                      3:['XXX', 0.0, 0.0, 80.0]}
     
     @m.Param(m.tru, m.comps, doc="Equipment Removal Ratio for Each Component")
     def beta(m, equip, comp):
@@ -142,7 +145,7 @@ TransformationFactory('gdp.bigm').apply_to(model,bigM=1e8)
 
 opt = SolverFactory('gams')
 
-results = opt.solve (model, tee=True, solver='baron')
+results = opt.solve (model, tee=True, solver='baron', add_options=['option reslim=120;'])
 
 print results
 
