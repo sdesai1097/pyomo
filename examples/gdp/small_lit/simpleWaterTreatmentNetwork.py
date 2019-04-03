@@ -141,6 +141,6 @@ results = opt.solve (model, tee=True, solver='baron')
 
 print results
 
-#model.pprint()
+model.pprint()
 
 

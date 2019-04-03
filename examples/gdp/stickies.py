@@ -2,8 +2,11 @@ import pyomo.environ
 from pyomo.core import *
 from pyomo.gdp import *
 
-# from pyomo.opt import SolverFactory
-# from pyomo.core.base import Transformation
+from pyomo.opt import SolverFactory
+from pyomo.core.base import Transformation
+
+from pyomo.util.model_size import log_model_size_report
+from pyomo.contrib.fbbt.fbbt import fbbt
 
 
 ''' Layout optimization for screening systems in waste paper recovery:
@@ -22,8 +25,7 @@ model = AbstractModel()
 model.BigM = Suffix(direction=Suffix.LOCAL)
 model.BigM[None] = 1000
 
-SOLVER = 'baron'                          
-DATFILE = "stickies1.dat"
+DATFILE = "stickies3.dat"
 
 #######################
 #Sets
@@ -592,14 +594,39 @@ for s in instance.Screens:
 # instance.flow_from_source_disjunct['PRD'].indicator_var.fix(0)
 # instance.flow_from_source_disjunct['SNK'].indicator_var.fix(0)
 
-# bigm transformation!
-bigM = TransformationFactory('gdp.bigm')
-bigM.apply_to(instance)
+#BigM transformation
+#TransformationFactory('gdp.bigm').apply_to(instance)
+
+#Variable Aggregator transformation
+#TransformationFactory('contrib.aggregate_vars').apply_to(instance)
+
+#Explicit Constraints to Variable Bounds transformation
+#TransformationFactory('contrib.constraints_to_var_bounds').apply_to(instance)
+
+#Induced Linearity transformation
+#TransformationFactory('contrib.induced_linearity').apply_to(instance)
+
+#Constraint Bounds Tightener transformation
+#TransformationFactory('core.tighten_constraints_from_vars').apply_to(instance)
+
+fbbt(instance)
 
 # solve the model
-opt = SolverFactory(SOLVER)
-opt.options["MaxTime"] = 32400
-results = opt.solve(instance, tee=True)
+#opt = SolverFactory('gams')
+#results = opt.solve(instance, tee=True, solver='baron', add_options=['option reslim=360;'])
 
-instance.solutions.store_to(results)
-print(results)
+
+result = SolverFactory('gdpopt').solve(
+        instance, tee=True, strategy='GLOA',
+        mip_solver='gams',
+        nlp_solver='gams',
+        nlp_solver_args=dict(solver='baron', add_options=['option reslim=120;']),
+        calc_disjunctive_bounds=True,
+        obbt_disjunctive_bounds=False,
+        iterlim=50,
+    )
+
+instance.solutions.store_to(result)
+log_model_size_report(instance)
+#print(results)
+

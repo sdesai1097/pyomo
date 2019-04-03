@@ -167,7 +167,7 @@ TransformationFactory('gdp.bigm').apply_to(model,bigM=1e8)
 
 opt = SolverFactory('gams')
 
-results = opt.solve (model, tee=True, solver='baron', add_options=['option reslim=120;'])
+results = opt.solve (model, tee=True, solver='baron', add_options=['option reslim=30;'])
 
 print results
 

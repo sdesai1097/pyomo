@@ -1,5 +1,5 @@
 '''
-Problem from Example 8 (Optimal Design of Distributed Wastewater Treatment Networks - Galan and Grossmann, 1998)
+Problem from Example 1 (Optimal Design of Distributed Wastewater Treatment Networks - Galan and Grossmann, 1998)
 
 Link to Article: https://pubs.acs.org/doi/10.1021/ie980133h 
 
@@ -11,7 +11,7 @@ find the interconnections of the technologies and their flowrates to
 meet the specified discharge composition of pollutant at minimum
 total cost.
 
-In this simplified example of the wastewater treatment network problem, costs are optimized by minimizing the flow rate treated but treatment unit equipment options are given (discrete choices involved).
+In this simplified example of the wastewater treatment network problem, costs are optimized by minimizing the flow rate treated and treatment unit equipment is pre-selected (no discrete choices involved).
 
 Full GDP model and explanation of model for the wastewater treatment network problem can be found under example 4 of Lee and Grossmann (2003): 
 
@@ -32,31 +32,29 @@ def build_water_treatment_network_model():
 
     
     """Set declarations"""
-    m.in_flows = RangeSet(1, 3, doc="Inlet total flows", ordered=True)
+    m.in_flows = RangeSet(1, 2, doc="Inlet total flows", ordered=True)
     #Water is represented as third component, but really represents total flow
-    m.comps = Set(initialize=['A', 'B', 'C', 'W'])
-    m.mixers = RangeSet(1, 4, doc="Mixers", ordered=True)
-    m.mixer_ins = RangeSet(1, 6, doc="Mixer_Ins", ordered=True)
-    m.splitters = RangeSet(1, 6, doc="Splitters", ordered=True)
-    m.splitter_outs = RangeSet(1, 4, doc="Splitter_Outs", ordered=True)
-    m.tru = RangeSet(1, 3, doc="Treatment process units", ordered=True)
-    m.allEquipment = RangeSet(1, 9, doc="All Equipment", ordered=True)
+    m.comps = Set(initialize=['A', 'B', 'W'])
+    m.mixers = RangeSet(1, 3, doc="Mixers", ordered=True)
+    m.mixer_ins = RangeSet(1, 4, doc="Mixer_Ins", ordered=True)
+    m.splitters = RangeSet(1, 4, doc="Splitters", ordered=True)
+    m.splitter_outs = RangeSet(1, 3, doc="Splitter_Outs", ordered=True)
+    m.tru = RangeSet(1, 2, doc="Treatment process units", ordered=True)
     
 
     """Parameter and initial point declarations"""
 
     #Inlet flow information
-    in_flows = {1:20, 2:15, 3:5} # t/h
+    in_flows = {1:40, 2:40} # t/h
     #Component flow of water is just the same as the total flowrate
-    in_concs = {1: {'A':1100, 'B':300, 'C':400, 'W':1}, #ppm
-                2: {'A':300, 'B':700, 'C':1500, 'W':1},
-                3: {'A':500, 'B':100, 'C':600, 'W':1}}
+    in_concs = {1: {'A':100, 'B':20, 'W':1}, #ppm
+                2: {'A':15, 'B':200, 'W':1}}
 
     @m.Param(m.in_flows, m.comps, doc="Inlet Component Flows [=] t*ppm/h")
     def in_comp_flow(m, flow, comp):
         return in_flows[flow] * (in_concs[flow][comp])
 
-    limits = {'A':100, 'B':100, 'C':100, 'W':1} # Discharge limits [=] ppm
+    limits = {'A':10, 'B':10, 'W':1} # Discharge limits [=] ppm
     
     m.out_flow_total = sum(in_flows[i] for i in m.in_flows)
     @m.Param(m.comps, doc="Outlet Component Flows [=] t*ppm/h")
@@ -64,31 +62,26 @@ def build_water_treatment_network_model():
         return m.out_flow_total * limits[comp]
 
     # equipment_info = {num: name, [removal ratio A, removal ratio B]}
+    equipment_info = {1:['X', 95.0,  0.0],
+                      2:['XX', 0.0, 97.6]}
     
-    equipment_info = {1:['EA', 90.0,  0.0, 40.0],
-                      2:['EB', 50.0, 70.0,  0.0],
-                      3:['EC', 0.0, 80.0,  0.0],
-                      4:['ED', 0.0, 90.0,  0.0],
-                      5:['EE', 0.0, 99.0,  00.0],
-                      6:['EF', 50.0, 99.0, 80.0],
-                      7:['EG', 80.0, 0.0,  60.0],
-                      8:['EH', 0.0, 0.0,  80.0],
-                      9:['EI', 0.0, 0.0, 40.0]}
-    
-    @m.Param(m.allEquipment, m.comps, doc="Equipment Removal Ratio for Each Component")
+    @m.Param(m.tru, m.comps, doc="Equipment Removal Ratio for Each Component")
     def beta(m, equip, comp):
         if comp == 'A':
             return equipment_info[equip][1]/100
         elif comp == 'B':
             return equipment_info[equip][2]/100
-        elif comp == 'C':
-            return equipment_info[equip][3]/100
         else:
             return 0
 
 
     """Variable Declarations"""
-
+    m.in_split_frac = Var(m.tru, m.mixers, domain=NonNegativeReals, bounds=(0,1), doc="Split fractions for inlet splitters k into mixer inlet streams i")
+    m.flow
+    m.flow_into_tru
+    m.flow_from_tru
+    m.tru_split_frac
+    m.flow_out
     m.S_k = Var(m.splitters, m.splitter_outs, m.comps, domain=NonNegativeReals, doc="Splitter Effluent Streams")
     m.M_k = Var(m.mixers, m.mixer_ins, m.comps, domain=NonNegativeReals, doc="Mixer Inlet Streams")
     m.IPU = Var(m.tru, m.comps, domain=NonNegativeReals, doc="TRU Inlet Streams")
@@ -98,17 +91,16 @@ def build_water_treatment_network_model():
 
 
     """Constraint definitions"""
-
+    
+    @m.Constraint(
+    def inlet_mass_bal(m, 
+    
     @m.Constraint(m.mixers, m.comps, doc="Flow Balance for mixer k")
     def mixer_balance(m, mixer, comp):
         if mixer < len(m.mixers):
             return m.IPU[mixer,comp] == sum(m.M_k[mixer,inlet,comp] for inlet in m.mixer_ins)
-        else: 
-            #last mixer has a different mass balance
-            if comp == 'W':
-                return m.out_comp_flow[comp] == sum(m.M_k[mixer,inlet,comp] for inlet in m.mixer_ins)
-            else:  
-                return m.out_comp_flow[comp] >= sum(m.M_k[mixer,inlet,comp] for inlet in m.mixer_ins)
+        else: #last mixer has a different mass balance
+            return m.out_comp_flow[comp] == sum(m.M_k[mixer,inlet,comp] for inlet in m.mixer_ins)
     
     @m.Constraint(m.splitters, m.mixers, m.comps, doc="Splitter effluents are mixer inlets")
     def split_mix(m, splitter, mixer, comp):
@@ -132,34 +124,17 @@ def build_water_treatment_network_model():
         else:
             return m.S_k[splitter,outlet,comp] == m.split[splitter,outlet] * m.OPU[splitter-len(m.in_flows),comp]
 
+    @m.Constraint(m.tru, m.comps, doc="Component Removal for Treatment Unit k")
+    def component_removal(m,equip,comp):
+        return m.OPU[equip,comp] == (1-m.beta[equip,comp])*m.IPU[equip,comp]
+
     @m.Constraint(m.tru, doc="Total Flow Balance for Treatment Unit k")
     def total_tru_flow_balance(m, equip):
         return m.IPU[equip,'W'] == m.OPU[equip,'W']
     
-    """Disjunctions"""
-
-    #Different types of equipment can be used for each treatment unit
-    #Technologies have constant removal ratios for each pollutant
-
-    @m.Disjunct(m.allEquipment)
-    def equipment_disjuncts(disj,equip):
-
-        @disj.Constraint(m.comps)
-        def component_removal(disj,comp):
-            return m.OPU[((equip-1)//3)+1,comp] == (1-m.beta[equip,comp])*m.IPU[((equip-1)//3)+1,comp]
-
-    m.TX = Disjunction(expr=[m.equipment_disjuncts[1], m.equipment_disjuncts[2], m.equipment_disjuncts[3]], 
-                           doc="Treatment Unit 1")
-
-    m.TXX = Disjunction(expr=[m.equipment_disjuncts[4], m.equipment_disjuncts[5], m.equipment_disjuncts[6]], 
-                           doc="Treatment Unit 2")
-
-    m.TXXX = Disjunction(expr=[m.equipment_disjuncts[7], m.equipment_disjuncts[8], m.equipment_disjuncts[9]], 
-                           doc="Treatment Unit 3")
-    
     """Objective function definition"""
     
-    m.minCost = Objective(expr=sum(m.IPU[t,'W'] for t in m.tru), doc="Minimize waste stream processing cost")
+    m.minCost = Objective(expr=sum(m.OPU[t,'W'] for t in m.tru), doc="Minimize waste stream processing cost")
 
     return m
 
@@ -170,9 +145,10 @@ TransformationFactory('gdp.bigm').apply_to(model,bigM=1e8)
 
 opt = SolverFactory('gams')
 
-results = opt.solve (model, tee=True, solver='baron', add_options=['option reslim=120;'])
+results = opt.solve (model, tee=True, solver='baron')
 
 print results
 
-model.pprint()
-model.display()
+#model.pprint()
+
+
