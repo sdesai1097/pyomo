@@ -7,16 +7,19 @@ import ctypes
 import logging
 import os
 
+from pyomo.core.base.expression import _ExpressionData
 from pyomo.core import value, Expression
 from pyomo.core.base.block import SubclassOf
-from pyomo.core.expr.current import identify_variables
-from pyomo.core.expr.expr_pyomo5 import (
+from pyomo.core.expr.numvalue import nonpyomo_leaf_types
+from pyomo.core.expr.numeric_expr import (
     AbsExpression, LinearExpression, NegationExpression, NPV_AbsExpression,
     NPV_ExternalFunctionExpression, NPV_NegationExpression, NPV_PowExpression,
     NPV_ProductExpression, NPV_ReciprocalExpression, NPV_SumExpression,
     NPV_UnaryFunctionExpression, PowExpression, ProductExpression,
-    ReciprocalExpression, StreamBasedExpressionVisitor, SumExpression,
-    UnaryFunctionExpression, nonpyomo_leaf_types
+    ReciprocalExpression, SumExpression, UnaryFunctionExpression,
+)
+from pyomo.core.expr.visitor import (
+    StreamBasedExpressionVisitor, identify_variables,
 )
 from pyomo.core.kernel.component_map import ComponentMap
 
@@ -208,7 +211,7 @@ class MCPP_visitor(StreamBasedExpressionVisitor):
             ans = self.mcpp.new_createConstant(node)
         elif not node.is_expression_type():
             ans = self.register_num(node)
-        elif type(node) in SubclassOf(Expression):
+        elif type(node) in SubclassOf(Expression) or isinstance(node, _ExpressionData):
             ans = data[0]
         else:
             raise RuntimeError("Unhandled expression type: %s" % (type(node)))
