@@ -108,6 +108,7 @@ def build_water_treatment_network_model():
                                       doc="Split fractions for splitter k into stream i")
     m.CP_k = Var(m.tru, domain=NonNegativeReals, doc="Cost of equipment h chosen for treatment unit k")
    
+    """
     m.S_k[1,1,'W'].fix(0)
     m.S_k[1,2,'W'].fix(7.256)
     m.S_k[1,3,'W'].fix(12.744)
@@ -132,6 +133,7 @@ def build_water_treatment_network_model():
     m.S_k[6,2,'W'].fix(0)
     m.S_k[6,3,'W'].fix(0)
     m.S_k[6,4,'W'].fix(0)
+    """
     
     """Constraint definitions"""
 
@@ -212,7 +214,7 @@ opt = SolverFactory('gams')
 
 results = opt.solve (model, tee=True, solver='baron', add_options=['option reslim=120;'])
 
-print results
+print(results)
 
 model.pprint()
 model.TX.pprint()
