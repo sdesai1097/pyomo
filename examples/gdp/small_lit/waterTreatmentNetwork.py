@@ -30,6 +30,9 @@ from __future__ import division
 from pyomo.environ import *
 from pyomo.gdp import *
 
+from pyomo.util.model_size import log_model_size_report
+from pyomo.contrib.fbbt.fbbt import fbbt
+
 def build_water_treatment_network_model():
     """Build the water treatment network model"""
     m = ConcreteModel(name = "Water Treatment Network")
@@ -107,33 +110,20 @@ def build_water_treatment_network_model():
     m.split = Var(m.splitters, m.splitter_outs, domain=NonNegativeReals, bounds=(0,1), 
                                       doc="Split fractions for splitter k into stream i")
     m.CP_k = Var(m.tru, domain=NonNegativeReals, doc="Cost of equipment h chosen for treatment unit k")
+    m.CP_I = Var(m.tru, domain=NonNegativeReals, doc="Investment cost of equipment h chosen for treatment unit k")
+    m.CP_O = Var(m.tru, domain=NonNegativeReals, doc="Operating cost of equipment h chosen for treatment unit k")
    
-    """
-    m.S_k[1,1,'W'].fix(0)
-    m.S_k[1,2,'W'].fix(7.256)
-    m.S_k[1,3,'W'].fix(12.744)
-    m.S_k[1,4,'W'].fix(0)
-    m.S_k[2,1,'W'].fix(0)
-    m.S_k[2,2,'W'].fix(15)
-    m.S_k[2,3,'W'].fix(0)
-    m.S_k[2,4,'W'].fix(0)
-    m.S_k[3,1,'W'].fix(0)
-    m.S_k[3,2,'W'].fix(5)
-    m.S_k[3,3,'W'].fix(0)
-    m.S_k[3,4,'W'].fix(0)
-    m.S_k[4,1,'W'].fix(0)
-    m.S_k[4,2,'W'].fix(0)
-    m.S_k[4,3,'W'].fix(0)
-    m.S_k[4,4,'W'].fix(40)
-    m.S_k[5,1,'W'].fix(2.397)
-    m.S_k[5,2,'W'].fix(0)
-    m.S_k[5,3,'W'].fix(24.859)
-    m.S_k[5,4,'W'].fix(0)
-    m.S_k[6,1,'W'].fix(37.603)
-    m.S_k[6,2,'W'].fix(0)
-    m.S_k[6,3,'W'].fix(0)
-    m.S_k[6,4,'W'].fix(0)
-    """
+
+    m.split[1,1].fix(0)
+    m.split[1,4].fix(0)
+    m.split[2,2].fix(1)
+    m.split[3,2].fix(1)
+    m.split[4,4].fix(1)
+    m.split[5,2].fix(0)
+    m.split[5,4].fix(0)
+    m.split[6,1].fix(1)
+
+    
     
     """Constraint definitions"""
 
@@ -186,8 +176,10 @@ def build_water_treatment_network_model():
             return m.OPU[((equip-1)//3)+1,comp] == (1-m.beta[equip,comp])*m.IPU[((equip-1)//3)+1,comp]
         
         F = m.OPU[((equip-1)//3)+1,'W']
+        
 
-        disj.cost = Constraint(expr=m.CP_k[((equip-1)//3)+1] == (m.alpha[equip]*(F**0.7) + m.gamma[equip]*F))
+        disj.inv_cost = Constraint(expr=m.CP_I[((equip-1)//3)+1] == m.alpha[equip]*(F**0.7))
+        disj.op_cost = Constraint(expr=m.CP_O[((equip-1)//3)+1] == m.gamma[equip]*F)
 
     m.TX = Disjunction(expr=[m.equipment_disjuncts[1], m.equipment_disjuncts[2], m.equipment_disjuncts[3]], 
                            doc="Treatment Unit 1")
@@ -201,23 +193,64 @@ def build_water_treatment_network_model():
 
     """Objective function definition"""
     
-    m.minCost = Objective(expr=sum(m.CP_k[i] for i in m.tru), doc="Minimize waste stream processing cost")
+    m.minCost = Objective(expr=sum((m.CP_I[i] + 8600*m.CP_O[i]) for i in m.tru), doc="Minimize waste stream processing cost")
 
     return m
 
 
 model = build_water_treatment_network_model()
 
+#BigM transformation
 TransformationFactory('gdp.bigm').apply_to(model,bigM=1e6)
 
+#Variable Aggregator transformation
+#TransformationFactory('contrib.aggregate_vars').apply_to(model)
+
+#Explicit Constraints to Variable Bounds transformation
+#TransformationFactory('contrib.constraints_to_var_bounds').apply_to(model)
+
+#Induced Linearity transformation
+#TransformationFactory('contrib.induced_linearity').apply_to(model)
+
+#Constraint Bounds Tightener transformation
+#TransformationFactory('core.tighten_constraints_from_vars').apply_to(model)
+
+#Zero Sum Propagator transformation
+#TransformationFactory('contrib.propagate_zero_sum').apply_to(model)
+
+#Trivial Constraint Deactivation transformation
+#TransformationFactory('contrib.deactivate_trivial_constraints').apply_to(model)
+
+#Fixed Variable Detector transformation
+#TransformationFactory('contrib.detect_fixed_vars').apply_to(model)
+
+#Fixed Variable Equality Propagator transformation
+#TransformationFactory('contrib.propagate_fixed_vars').apply_to(model)
+
+#Variable Bound Equality Propagator transformation
+#TransformationFactory('contrib.propagate_eq_var_bounds').apply_to(model)
+
+#Zero Term Remover transformation
+#TransformationFactory('contrib.remove_zero_terms').apply_to(model)
+
+#Variable Zero Initializer transformation
+#TransformationFactory('contrib.init_vars_zero').apply_to(model)
+
+#FBBT
+#fbbt(model)
+
+#Solve the model
 opt = SolverFactory('gams')
 
-results = opt.solve (model, tee=True, solver='baron', add_options=['option reslim=120;'])
+results = opt.solve (model, tee=True, solver='baron', add_options=['option reslim=20;'])
 
 print(results)
 
 model.pprint()
-model.TX.pprint()
-model.TXX.pprint()
-model.TXXX.pprint()
-model.display()
+#model.display()
+#for disjctn in model.component_data_objects(Disjunction):
+#    for disj in disjctn.disjuncts:
+#        print(disj.name, disj.indicator_var.value)
+
+#log_model_size_report(model)
+
